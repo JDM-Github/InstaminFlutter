@@ -166,15 +166,7 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
             left: 0,
             right: 0,
             child: (html.isNotEmpty)
-                ?
-                // AbsorbPointer(
-                //     absorbing: true,
-                //     child: YoutubePlayer(
-                //       controller: _youtubeController!,
-                //       showVideoProgressIndicator: true,
-                //     ),
-                //   )
-                Container(
+                ? Container(
                     child: HtmlWidget(
                       html,
                     ),
@@ -202,7 +194,10 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
               children: [
                 FloatingActionButton.extended(
                   onPressed: () {
-                    _getCurrentProduct();
+                    // _getCurrentProduct();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('There is no scheduled items.')),
+                    );
                   },
                   backgroundColor: Colors.pink,
                   icon: const Icon(Icons.monetization_on, color: Colors.white),
