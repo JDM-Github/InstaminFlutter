@@ -13,9 +13,18 @@ class PaymentScreen extends StatefulWidget {
   final double shipping;
   final double discount;
   final double merchandiseTotal;
+  final String? walletType;
 
-  const PaymentScreen(this.user, this.products, this.shipping, this.discount, this.merchandiseTotal,
-      {super.key, required this.amount});
+  const PaymentScreen(
+    this.user,
+    this.products,
+    this.shipping,
+    this.discount,
+    this.merchandiseTotal, {
+    super.key,
+    required this.amount,
+    this.walletType,
+  });
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -28,15 +37,23 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   void initState() {
     super.initState();
-    _initializePayment();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initializePayment());
   }
 
   Future<void> _initializePayment() async {
     try {
+      dynamic order = await _handleSuccess();
+      if (order['success'] == false)
+      {
+        _handleFailure();
+        return;
+      }
       final response = await http.post(
-        Uri.parse('http://192.168.100.151:8888/.netlify/functions/api/create-payment'),
+        Uri.parse('https://instantmine.netlify.app/.netlify/functions/api/create-payment'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'amount': widget.amount, 'description': 'Order Payment'}),
+        body: jsonEncode({'amount': widget.amount, 'description': 'Order Payment', 'walletType': widget.walletType,
+          'products': widget.products, 'users': widget.user, 'order': order['orderBatch']
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -52,7 +69,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               },
               onPageStarted: (String url) {
                 if (url.contains('payment-success')) {
-                  _handleSuccess();
+                  paymentSuccess(order['orderBatch']['id']);
                 } else if (url.contains('payment-failed')) {
                   _handleFailure();
                 }
@@ -70,7 +87,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               },
               onNavigationRequest: (NavigationRequest request) {
                 if (request.url.startsWith('https://yourdomain.com/payment-success')) {
-                  _handleSuccess();
+                  paymentSuccess(order['orderBatch']['id']);
                   return NavigationDecision.prevent;
                 }
                 if (request.url.startsWith('https://yourdomain.com/payment-failed')) {
@@ -91,45 +108,50 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
-  void _handleSuccess() async {
-    setState(() {
-      _isLoading = false;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment Successful!')),
-    );
-
+  void paymentSuccess(String id) async
+  {
     RequestHandler requestHandler = RequestHandler();
+
     try {
-      Map<String, dynamic> response = await requestHandler.handleRequest(context, 'orders/bulkOrder', body: {
-        'products': widget.products,
-        'userId': widget.user['id'],
-        'shoppingFee': widget.shipping,
-        'discountFee': widget.discount,
-        'subTotalFee': widget.merchandiseTotal,
-        'isPaid': true
+      String email = widget.user['email'];
+      String notificationMessage = """
+      Hello ${widget.user['username']},
+
+      Thank you for your recent order with InstaMine! We are pleased to inform you that your order has been successfully placed and is now being processed.
+
+      You will be notified once your order is ready to be shipped. If you have any questions or need further assistance, feel free to contact our support team.
+
+      Thank you for choosing InstaMine. We hope you enjoy your purchase!
+
+      Best regards, 
+      The InstaMine Business Team
+      """;
+      Map<String, dynamic> response = await requestHandler.handleRequest(context, 'orders/paidOrder', body: {
+        'id': id,
+        'email': email,
+        'notificationMessage': notificationMessage
       });
 
       if (response['success'] == true) {
         if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Successfully purchased the order'),
+            ),
+          );
           Navigator.pushAndRemoveUntil(
-            context,
+              context,
             MaterialPageRoute(builder: (context) => DashboardScreen(user: widget.user, selectInitialIndex: 3)),
             (Route<dynamic> route) => false,
           );
           Navigator.push(context,
-              MaterialPageRoute(builder: (builder) => ToShipScreen(widget.user, toShip: true, textAbove: "To Ship")));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(response['message'] ?? 'Successfully placed order'),
-            ),
-          );
+            MaterialPageRoute(builder: (builder) => ToShipScreen(widget.user, toShip: true, textAbove: "To Ship")));
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(response['message'] ?? 'Placing order error'),
+              content: Text(response['message'] ?? 'Purchasing order error'),
             ),
           );
         }
@@ -143,6 +165,78 @@ class _PaymentScreenState extends State<PaymentScreen> {
     }
   }
 
+  dynamic _handleSuccess() async {
+    // if (widget.user.location == "" || widget.user.location == null) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('User has no location. Cannot placed the order.'),
+    //     ),
+    //   );
+    //   Navigator.pop(context);
+    //   return;
+    // }
+
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      String email = widget.user['email'];
+      String notificationMessage = """
+      Hello ${widget.user['username']},
+
+      Thank you for your recent order with InstaMine! We are pleased to inform you that your order has been successfully placed and is now being processed.
+
+      Order Summary:
+      - Items: ${widget.products.length} product(s)
+      - Shipping: ₱${widget.shipping}
+      - Discount: -₱${widget.discount}
+      - Total: ₱${widget.merchandiseTotal}
+
+      You will be notified once your order is ready to be shipped. If you have any questions or need further assistance, feel free to contact our support team.
+
+      Thank you for choosing InstaMine. We hope you enjoy your purchase!
+
+      Best regards, 
+      The InstaMine Business Team
+      """;
+      Map<String, dynamic> response = await requestHandler.handleRequest(context, 'orders/bulkOrder', body: {
+        'products': widget.products,
+        'userId': widget.user['id'],
+        'shoppingFee': widget.shipping,
+        'discountFee': widget.discount,
+        'subTotalFee': widget.merchandiseTotal,
+        'isPaid': false,
+        'email': email,
+        'notificationMessage': notificationMessage
+      });
+
+      if (response['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Successfully placed order'),
+            ),
+          );
+          return response;
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Placing order error'),
+            ),
+          );
+          return response;
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+      return {'success': false};
+    }
+  }
+
   void _handleFailure() {
     setState(() {
       _isLoading = false;
@@ -152,6 +246,63 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
     Navigator.pop(context);
   }
+
+  // Future<void> sendEmail() async {
+  //   if (widget.user['email'] == null || widget.user['email'].isEmpty) return;
+
+  //   RequestHandler requestHandler = RequestHandler();
+  //   try {
+  //     String email = widget.user['email'];
+  //     String notificationMessage = """
+  //     Hello ${widget.user['username']},
+
+  //     Thank you for your recent purchase with InstaMine! We are pleased to inform you that your order has been successfully placed and is now being processed.
+
+  //     Order Summary:
+  //     - Items: ${widget.products.length} product(s)
+  //     - Shipping: ₱${widget.shipping}
+  //     - Discount: -₱${widget.discount}
+  //     - Total: ₱${widget.merchandiseTotal}
+
+  //     You will be notified once your order is ready to be shipped. If you have any questions or need further assistance, feel free to contact our support team.
+
+  //     Thank you for choosing InstaMine. We hope you enjoy your purchase!
+
+  //     Best regards,
+  //     The InstaMine Business Team
+  //     """;
+
+  //     Map<String, dynamic> body = {
+  //       "notificationMessage": notificationMessage,
+  //       "email": email,
+  //     };
+
+  //     Map<String, dynamic> response = await requestHandler.handleRequest(context, 'send-notification', body: body);
+  //     if (response['success'] == true) {
+  //       if (mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text(response['message'] ?? 'Email sent successfully.'),
+  //           ),
+  //         );
+  //       }
+  //     } else {
+  //       if (mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text(response['message'] ?? 'Error sending email.'),
+  //           ),
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('An error occurred: $e')),
+  //       );
+  //     }
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

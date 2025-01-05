@@ -1,16 +1,15 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:project/screens/login.dart';
+import 'package:project/screens/modals/profile_edit.dart';
 import 'package:project/screens/toShip.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:project/utils/handleRequest.dart';
 
 class ProfileDashboard extends StatefulWidget {
   final dynamic user;
   const ProfileDashboard(this.user, {super.key});
 
   @override
-  _ProfileDashboardState createState() => _ProfileDashboardState();
+  State<ProfileDashboard> createState() => _ProfileDashboardState();
 }
 
 class _ProfileDashboardState extends State<ProfileDashboard> {
@@ -27,112 +26,68 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
     _email = widget.user['email'];
     _phone = widget.user['phoneNumber'];
     _location = widget.user['location'];
-    _profileImageUrl = widget.user['profileImage'];
-  }
-
-  File? _selectedImage;
-
-  Future<File?> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-
-    if (image != null) {
-      return File(image.path);
-    }
-    return null;
+    _profileImageUrl = "";
   }
 
   void _showEditModal(BuildContext context) {
-    final TextEditingController firstNameController = TextEditingController(text: widget.user['firstName']);
-    final TextEditingController lastNameController = TextEditingController(text: widget.user['lastName']);
-    final TextEditingController emailController = TextEditingController(text: widget.user['email']);
-    final TextEditingController phoneController = TextEditingController(text: widget.user['phone']);
-    final TextEditingController locationController = TextEditingController(text: widget.user['location']);
-
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Edit Profile"),
-          content: SizedBox(
-            width: MediaQuery.of(context).size.width * 0.8,
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      File? pickedImage = await _pickImage();
+      builder: (context) => EditProfileModal(
+        user: widget.user,
+        onSave: (selectedImage, updatedUser) async {
+          setState(() {
+            widget.user['profileImage'] = selectedImage?.path;
+            widget.user['firstName'] = updatedUser['firstName'];
+            widget.user['lastName'] = updatedUser['lastName'];
+            widget.user['email'] = updatedUser['email'];
+            widget.user['phoneNumber'] = updatedUser['phone'];
+            widget.user['location'] = updatedUser['location'];
 
-                      if (pickedImage != null) {
-                        setState(() {
-                          _selectedImage = pickedImage;
-                        });
-                      }
-                    },
-                    child: CircleAvatar(
-                      radius: 50,
-                      backgroundImage: _selectedImage != null
-                          ? FileImage(_selectedImage!)
-                          : (widget.user['profileImage'] != null ? NetworkImage(widget.user['profileImage']) : null)
-                              as ImageProvider?,
-                      child: _selectedImage == null && widget.user['profileImage'] == null
-                          ? const Icon(Icons.camera_alt, size: 50)
-                          : null,
-                    ),
+            _name = widget.user['firstName'] + " " + widget.user['lastName'];
+            _email = widget.user['email'];
+            _phone = widget.user['phoneNumber'];
+            _location = widget.user['location'];
+          });
+
+          RequestHandler requestHandler = RequestHandler();
+          try {
+            Map<String, dynamic> response = await requestHandler.handleRequest(context, 'user/updateUser',
+                body: {
+                  'profileImage': selectedImage?.path,
+                  'firstName': updatedUser['firstName'],
+                  'lastName': updatedUser['lastName'],
+                  'email': updatedUser['email'],
+                  'phoneNumber': updatedUser['phone'],
+                  'location': updatedUser['location'],
+                },
+                willLoadingShow: false);
+
+            if (response['success'] == true) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(response['message'] ?? 'Successfully updated user'),
                   ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: firstNameController,
-                    decoration: const InputDecoration(labelText: 'First Name'),
+                );
+              }
+            } else {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(response['message'] ?? 'Updating user error'),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: lastNameController,
-                    decoration: const InputDecoration(labelText: 'Last Name'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: phoneController,
-                    decoration: const InputDecoration(labelText: 'Phone'),
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: locationController,
-                    decoration: const InputDecoration(labelText: 'Location'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  widget.user['profileImage'] = _selectedImage != null ? _selectedImage!.path : null;
-                  widget.user['firstName'] = firstNameController.text;
-                  widget.user['lastName'] = lastNameController.text;
-                  widget.user['email'] = emailController.text;
-                  widget.user['phoneNumber'] = phoneController.text;
-                  widget.user['location'] = locationController.text;
-                });
-                Navigator.of(context).pop();
-              },
-              child: const Text("Save"),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Cancel"),
-            ),
-          ],
-        );
-      },
+                );
+              }
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('An error occurred: $e')),
+              );
+            }
+          }
+        },
+      ),
     );
   }
 
@@ -172,7 +127,6 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Profile Section
           Container(
             width: size.width,
             padding: const EdgeInsets.all(16.0),
@@ -233,13 +187,17 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
             ),
           ),
           const Divider(),
-
-          // Order Status Section
           Container(
             padding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                _buildOrderStatusButton(Icons.settings, 'Process', () {
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => ToShipScreen(widget.user, toProcess: true, textAbove: "Process Order")));
+                }),
                 _buildOrderStatusButton(Icons.local_shipping, 'To Ship', () {
                   Navigator.push(
                       context,
@@ -263,7 +221,6 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
             ),
           ),
           const Divider(),
-
           Container(
             padding: const EdgeInsets.all(16.0),
             child: const Text(
@@ -278,7 +235,6 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
     );
   }
 
-// ToPayScreen
   Widget _buildOrderStatusButton(IconData icon, String label, VoidCallback onPressed) {
     return Column(
       children: [

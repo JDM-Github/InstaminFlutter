@@ -1,12 +1,22 @@
 // ignore: file_names
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:project/screens/pay.dart';
 import 'package:project/utils/handleRequest.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+
+String generatePin() {
+  final random = Random();
+  return (random.nextInt(900000) + 100000).toString();
+}
 
 class ToShipScreen extends StatefulWidget {
   final bool toShip;
   final bool toReceive;
   final bool isComplete;
+  final bool toProcess;
   final String textAbove;
   final dynamic user;
 
@@ -16,6 +26,7 @@ class ToShipScreen extends StatefulWidget {
     this.toShip = false,
     this.toReceive = false,
     this.isComplete = false,
+    this.toProcess = false,
     required this.textAbove,
   });
 
@@ -26,6 +37,7 @@ class ToShipScreen extends StatefulWidget {
 class _ToShipScreen extends State<ToShipScreen> {
   List<dynamic> orders = [];
   bool isLoading = true;
+  String? _confirmationPin;
 
   @override
   void initState() {
@@ -40,7 +52,8 @@ class _ToShipScreen extends State<ToShipScreen> {
         'userId': widget.user['id'],
         'toShip': widget.toShip,
         'toReceive': widget.toReceive,
-        'isComplete': widget.isComplete
+        'isComplete': widget.isComplete,
+        'toProcess': widget.toProcess,
       });
       setState(() {
         isLoading = false;
@@ -88,6 +101,140 @@ class _ToShipScreen extends State<ToShipScreen> {
     );
   }
 
+
+  Future<void> sendEmail(index) async {
+    if (widget.user['email'] == null || widget.user['email'].isEmpty) return;
+
+    String notificationMessage = """
+      Hello ${widget.user['username']},
+
+      Thank you for choosing InstaMine! We're processing your recent order and need a quick confirmation to finalize your cancellation request.
+
+      To proceed with the cancellation, please enter the confirmation pin provided below:
+
+      Confirmation Pin: $_confirmationPin
+
+      Please note that this pin is required for us to verify your action and complete the cancellation process.
+
+      If you did not request a cancellation, please disregard this message. If you have any questions or need assistance, feel free to reach out to our support team.
+
+      Thank you for being a valued customer!
+
+      Best regards,
+      The InstaMine Team
+      """;
+
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> body = {
+        "notificationMessage": notificationMessage,
+        "email": widget.user['email'],
+      };
+
+      Map<String, dynamic> response = await requestHandler.handleRequest(context, 'send-notification', body: body);
+
+      if (response['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Confirmation sent successfully.'),
+            ),
+          );
+        }
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Cancel Order Confirmation'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('To confirm cancellation. Enter the emailed pin.'),
+                  TextField(
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    decoration: const InputDecoration(labelText: 'Enter Pin'),
+                    onChanged: (pin) {
+                      if (pin == _confirmationPin) {
+                        Navigator.pop(context);
+                        _processCancellation(index);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Cancel'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Error sending email.'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+    }
+  }
+
+  void _cancelOrder(index) async {
+    _confirmationPin = generatePin();
+    await sendEmail(index);
+  }
+
+  void _processCancellation(index) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Order Canceled')),
+    );
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> response = await requestHandler.handleRequest(context, 'orders/cancelOrder',
+          body: {'orderId': orders[index]['orderId'], 'user': widget.user}, willLoadingShow: true);
+
+      if (response['success'] == true) {
+        setState(() {
+          orders.removeAt(index);
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Successfully cancelled order'),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Cancelling order error'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -109,7 +256,6 @@ class _ToShipScreen extends State<ToShipScreen> {
                 itemCount: orders.length,
                 itemBuilder: (context, index) {
                   final order = orders[index];
-                  String totalAmount = order['totalAmount'];
 
                   return Card(
                     elevation: 5,
@@ -139,23 +285,21 @@ class _ToShipScreen extends State<ToShipScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: Colors.orangeAccent.withOpacity(0.1),
+                                  color: order['status'] == 'Expired' ? Colors.red.withAlpha(10) : Colors.orangeAccent.withAlpha(10),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
                                   order['status'],
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.orangeAccent,
+                                    color: order['status'] == 'Expired' ? Colors.red : Colors.orangeAccent,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 10),
-
                           Column(
                             children: order['products'].map<Widget>((product) {
                               return Row(
@@ -174,8 +318,6 @@ class _ToShipScreen extends State<ToShipScreen> {
                             }).toList(),
                           ),
                           const SizedBox(height: 10),
-
-                          // Total amount for this order
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -187,7 +329,7 @@ class _ToShipScreen extends State<ToShipScreen> {
                                 ),
                               ),
                               Text(
-                                '₱${totalAmount}',
+                                '₱${order['totalAmount']}',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -198,6 +340,16 @@ class _ToShipScreen extends State<ToShipScreen> {
                           ),
                           const SizedBox(height: 10),
 
+                          if (order['reference_number'] != null && order['reference_number'] != '')
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                'Reference Number: ${order['reference_number']}',
+                                style: const TextStyle(fontSize: 14, color: Colors.grey),
+                              ),
+                            ),
+
+                          const SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
@@ -212,14 +364,12 @@ class _ToShipScreen extends State<ToShipScreen> {
                                   style: TextStyle(fontSize: 14, color: Colors.white),
                                 ),
                               ),
-                              if (widget.toShip && !order['isPaid']) const SizedBox(width: 10),
-                              if (widget.toShip && !order['isPaid'])
+                              if ((widget.toShip && !order['isPaid']) ||
+                                  (order['paymentLink'] != "" && !order['isPaid'] && order['status'] == "Pending"))
+                                const SizedBox(width: 10),
+                              if ((widget.toShip && !order['isPaid']) || (order['paymentLink'] != "" && !order['isPaid'] && order['status'] == "Pending"))
                                 ElevatedButton(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Order Canceled')),
-                                    );
-                                  },
+                                  onPressed: () =>(widget.toShip && !order['isPaid']) ? _cancelOrder(index) : _processCancellation(index),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.red,
                                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -229,6 +379,7 @@ class _ToShipScreen extends State<ToShipScreen> {
                                     style: TextStyle(fontSize: 14, color: Colors.white),
                                   ),
                                 ),
+
                               if (widget.toReceive) const SizedBox(width: 10),
                               if (widget.toReceive)
                                 ElevatedButton(
@@ -241,6 +392,34 @@ class _ToShipScreen extends State<ToShipScreen> {
                                   ),
                                   child: const Text(
                                     'Complete Order',
+                                    style: TextStyle(fontSize: 14, color: Colors.white),
+                                  ),
+                                ),
+                              if (order['paymentLink'] != "" && !order['isPaid'] && order['status'] == "Pending") const SizedBox(width: 10),
+                              if (order['paymentLink'] != "" && !order['isPaid'] && order['status'] == "Pending")
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(context, MaterialPageRoute(builder: (builder) => PayScreen(order['paymentLink'], widget.user, order['orderId'])));
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                    backgroundColor: Colors.blue,
+                                  ),
+                                  child: const Text(
+                                    'Pay Now',
+                                    style: TextStyle(fontSize: 14, color: Colors.white),
+                                  ),
+                                ),
+                              if (order['status'] == "Expired") const SizedBox(width: 10),
+                              if (order['status'] == "Expired")
+                                ElevatedButton(
+                                  onPressed: () => _processCancellation(index),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                  ),
+                                  child: const Text(
+                                    'Remove Order',
                                     style: TextStyle(fontSize: 14, color: Colors.white),
                                   ),
                                 ),
@@ -302,7 +481,6 @@ class OrderDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    print(order);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order Details'),
@@ -321,17 +499,17 @@ class OrderDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'John Doe (+639343424534)',
-                style: TextStyle(
+              Text(
+                '${user['firstName']} ${user['lastName']} (${user['phoneNumber'] != '' ? user['phoneNumber'] : 'NOT SET'})',
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 5),
-              const Text(
-                'New York, USA',
-                style: TextStyle(
+              Text(
+                '${user['location'] != '' ? user['location'] : 'NOT SET'}',
+                style: const TextStyle(
                   fontSize: 16,
                   color: Colors.black87,
                 ),
@@ -348,10 +526,10 @@ class OrderDetailScreen extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 'Status: ${order['status']}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.orangeAccent,
+                  color: order['status'] == 'Expired' ? Colors.red : Colors.orangeAccent,
                 ),
               ),
               const SizedBox(height: 10),
@@ -489,35 +667,35 @@ class OrderDetailScreen extends StatelessWidget {
                   },
                 ),
               ),
-              const Divider(color: Colors.grey, thickness: 1),
-              const SizedBox(height: 20),
-              const Text(
-                'Tracking Information:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              (order['allTrack'].length == 0
-                  ? const Center(child: Text("No track record."))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: order['allTrack'].length,
-                      itemBuilder: (context, index) {
-                        final track = order['allTrack'][index];
-                        return Row(
-                          children: [
-                            const Icon(Icons.location_on, color: Colors.blue),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                track,
-                                style: const TextStyle(fontSize: 14, color: Colors.black87),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    )),
+              // const Divider(color: Colors.grey, thickness: 1),
+              // const SizedBox(height: 20),
+              // const Text(
+              //   'Tracking Information:',
+              //   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              // ),
+              // const SizedBox(height: 10),
+              // (order['allTrack'].length == 0
+              //     ? const Center(child: Text("No track record."))
+              //     : ListView.builder(
+              //         shrinkWrap: true,
+              //         physics: const NeverScrollableScrollPhysics(),
+              //         itemCount: order['allTrack'].length,
+              //         itemBuilder: (context, index) {
+              //           final track = order['allTrack'][index];
+              //           return Row(
+              //             children: [
+              //               const Icon(Icons.location_on, color: Colors.blue),
+              //               const SizedBox(width: 10),
+              //               Expanded(
+              //                 child: Text(
+              //                   track,
+              //                   style: const TextStyle(fontSize: 14, color: Colors.black87),
+              //                 ),
+              //               ),
+              //             ],
+              //           );
+              //         },
+              //       )),
               const SizedBox(height: 20),
               const Divider(color: Colors.grey, thickness: 1),
               const SizedBox(height: 20),
@@ -735,6 +913,8 @@ class OrderDetailScreen extends StatelessWidget {
                 if (rating > 0) {
                   final note = noteController.text;
                   addRating(context, index, userId, rating, note);
+                  order['products'][index]['isRated'] = true;
+                  Navigator.pop(context);
                   Navigator.pop(context);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(

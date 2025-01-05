@@ -18,6 +18,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
 
+  final TextEditingController search = TextEditingController(text: "");
+  final FocusNode searchFocusNode = FocusNode();
+  List<Widget>? screens;
   late List<Widget> _dashboardWidgets;
   @override
   void initState() {
@@ -26,41 +29,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _selectedIndex = widget.selectInitialIndex;
     });
 
-    _dashboardWidgets = [
-      HomeDashboard(widget.user),
-      LiveDashboard(widget.user),
-      NotificationDashboard(widget.user),
-      ProfileDashboard(widget.user),
-    ];
-  }
-
-  final List<Widget> screens = [
-    TextField(
-      decoration: InputDecoration(
-        hintText: 'Search...',
-        hintStyle: const TextStyle(color: Colors.white),
-        prefixIcon: const Icon(Icons.search, color: Colors.white),
-        filled: true,
-        fillColor: Colors.white30,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
+    screens = [
+      Focus(
+        focusNode: searchFocusNode,
+        child: TextField(
+          controller: search,
+          decoration: InputDecoration(
+            hintText: 'Search...',
+            hintStyle: const TextStyle(color: Colors.white),
+            prefixIcon: const Icon(Icons.search, color: Colors.white),
+            filled: true,
+            fillColor: Colors.white30,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(30),
+              borderSide: BorderSide.none,
+            ),
+          ),
         ),
       ),
-    ),
-    const Text(
-      'Live Stream',
-      style: TextStyle(color: Colors.white, fontSize: 20),
-    ),
-    const Text(
-      'Notification',
-      style: TextStyle(color: Colors.white, fontSize: 20),
-    ),
-    const Text(
-      'Profile',
-      style: TextStyle(color: Colors.white, fontSize: 20),
-    ),
-  ];
+      const Text(
+        'Live Stream',
+        style: TextStyle(color: Colors.white, fontSize: 20),
+      ),
+      const Text(
+        'Notification',
+        style: TextStyle(color: Colors.white, fontSize: 20),
+      ),
+      const Text(
+        'Profile',
+        style: TextStyle(color: Colors.white, fontSize: 20),
+      ),
+    ];
+
+    _updateDashboardWidgets();
+    search.addListener(() {
+      setState(() {
+        _updateDashboardWidgets();
+      });
+    });
+  }
+
+  void _updateDashboardWidgets() {
+    setState(() {
+      _dashboardWidgets = [
+        HomeDashboard(
+          widget.user,
+          search: search.text,
+        ),
+        LiveDashboard(widget.user),
+        NotificationDashboard(widget.user),
+        ProfileDashboard(widget.user),
+      ];
+    });
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -77,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(child: screens[_selectedIndex]),
+            Expanded(child: screens![_selectedIndex]),
             Row(
               children: [
                 IconButton(

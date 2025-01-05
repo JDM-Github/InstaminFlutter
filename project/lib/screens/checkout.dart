@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:project/screens/dashboard.dart';
+import 'package:project/screens/ewallet.dart';
 import 'package:project/screens/payment.dart';
 import 'package:project/screens/toShip.dart';
-// import 'package:project/utils/handleRequest.dart';
-// import 'package:http/http.dart' as http;
-// import 'dart:convert';
 import 'dart:async';
-
 import 'package:project/utils/handleRequest.dart';
-// import 'package:url_launcher/url_launcher.dart';
-// import 'package:webview_flutter/webview_flutter.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final dynamic user;
@@ -22,13 +17,15 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   String _selectedPaymentMethod = 'Cash on Delivery';
-  double shipping = 5.0;
+  double shipping = 0;
   double totalPayment = 0;
-  double discount = 10.0;
+  double discount = 0;
   double merchandiseTotal = 0;
 
   @override
   Widget build(BuildContext context) {
+    totalPayment = 0;
+    merchandiseTotal = 0;
     for (var product in widget.products) {
       merchandiseTotal += product['price'] * product['numberOfProduct'];
     }
@@ -68,7 +65,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
               value: _selectedPaymentMethod,
-              items: ['Cash on Delivery', 'Gcash']
+              items: ['Cash on Delivery', 'E-wallet']
                   .map((method) => DropdownMenuItem<String>(
                         value: method,
                         child: Text(method),
@@ -190,16 +187,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _orderCheckout() async {
-    if (_selectedPaymentMethod == 'Gcash') {
+    // if (widget.user.location == "" || widget.user.location == null) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('User has no location. Cannot placed the order.'),
+    //     ),
+    //   );
+    //   Navigator.pop(context);
+    //   return;
+    // }
+    if (_selectedPaymentMethod == 'E-wallet') {
       Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (builder) => PaymentScreen(widget.user, widget.products, shipping, discount, merchandiseTotal,
-                  amount: totalPayment)));
+        context,
+        MaterialPageRoute(
+          builder: (builder) => PaymentScreen(
+            widget.user,
+            widget.products,
+            shipping,
+            discount,
+            merchandiseTotal,
+            amount: totalPayment,
+            walletType: "",
+          ),
+        ),
+      );
       return;
     }
 
-    bool stockAvailable = widget.products.every((product) => product['stock'] >= product['numberOfProduct']);
+    bool stockAvailable = widget.products.every((product) {
+      var stock = product['stock'];
+      var numberOfProduct = product['numberOfProduct'];
+      if (stock is! int) stock = int.tryParse(stock.toString()) ?? 0;
+      if (numberOfProduct is! int) numberOfProduct = int.tryParse(numberOfProduct.toString()) ?? 0;
+      return stock >= numberOfProduct;
+    });
+
     if (!stockAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('One or more products are out of stock. Please adjust your order.')),
@@ -209,13 +231,36 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     RequestHandler requestHandler = RequestHandler();
     try {
+      String email = widget.user['email'];
+      String notificationMessage = """
+      Hello ${widget.user['username']},
+
+      Thank you for your recent purchase with InstaMine! We are pleased to inform you that your order has been successfully placed and is now being processed.
+
+      Order Summary:
+      - Items: ${widget.products.length} product(s)
+      - Shipping: ₱$shipping
+      - Discount: -₱$discount
+      - Total: ₱$totalPayment
+
+      You will be notified once your order is ready to be shipped. If you have any questions or need further assistance, feel free to contact our support team.
+
+      Thank you for choosing InstaMine. We hope you enjoy your purchase!
+
+      Best regards, 
+      The InstaMine Business Team
+      """;
+
       Map<String, dynamic> response = await requestHandler.handleRequest(context, 'orders/bulkOrder', body: {
         'products': widget.products,
         'userId': widget.user['id'],
         'shoppingFee': shipping,
         'discountFee': discount,
         'subTotalFee': merchandiseTotal,
-        'isPaid': false
+        'isPaid': false,
+        'email': email,
+        'toShip': true,
+        'notificationMessage': notificationMessage
       });
 
       if (response['success'] == true) {
@@ -250,4 +295,43 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
   }
+
+  // Future<void> sendEmail() async {
+  //   if (widget.user['email'] == null || widget.user['email'].isEmpty) return;
+
+  //   RequestHandler requestHandler = RequestHandler();
+  //   try {
+
+  //     Map<String, dynamic> body = {
+  //       "notificationMessage": notificationMessage,
+  //       "email": email,
+  //     };
+
+  //     Map<String, dynamic> response = await requestHandler.handleRequest(context, 'send-notification', body: body);
+
+  //     if (response['success'] == true) {
+  //       if (mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text(response['message'] ?? 'Email sent successfully.'),
+  //           ),
+  //         );
+  //       }
+  //     } else {
+  //       if (mounted) {
+  //         ScaffoldMessenger.of(context).showSnackBar(
+  //           SnackBar(
+  //             content: Text(response['message'] ?? 'Error sending email.'),
+  //           ),
+  //         );
+  //       }
+  //     }
+  //   } catch (e) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         SnackBar(content: Text('An error occurred: $e')),
+  //       );
+  //     }
+  //   }
+  // }
 }

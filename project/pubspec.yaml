@@ -39,6 +39,8 @@ dependencies:
     webview_flutter: ^4.10.0
     flutter_rating_bar: ^4.0.1
     flutter_widget_from_html: ^0.15.3
+    geolocator: ^13.0.2
+    geocoding: ^3.0.0
     # firebase_auth: ^5.3.3
 
 dev_dependencies:

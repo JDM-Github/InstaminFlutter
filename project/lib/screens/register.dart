@@ -24,36 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
-  // void _sendOtp() async {
-  //   try {
-  //     await FirebaseAuth.instance.verifyPhoneNumber(
-  //       phoneNumber: '+63${_phoneController.text}',
-  //       verificationCompleted: (PhoneAuthCredential credential) {
-  //         // Auto-retrieved or auto-sent verification completed.
-  //         // You can directly proceed with registration here.
-  //       },
-  //       verificationFailed: (FirebaseAuthException e) {
-  //         ScaffoldMessenger.of(context).showSnackBar(
-  //           SnackBar(content: Text('Phone number verification failed: ${e.message}')),
-  //         );
-  //       },
-  //       codeSent: (String verificationId, int? resendToken) {
-  //         // _verificationId = verificationId;
-  //         // _showOtpDialog();
-  //         print(verificationId);
-  //       },
-  //       codeAutoRetrievalTimeout: (String verificationId) {},
-  //     );
-  //   } catch (e) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text('An error occurred: $e')),
-  //     );
-  //   }
-  // }
-
   void _register() async {
-    // _sendOtp();
-    // return;
     RequestHandler requestHandler = RequestHandler();
     try {
       Map<String, dynamic> response = await requestHandler.handleRequest(
@@ -66,12 +37,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
           'birthdate': _bdayController.text,
           'email': _emailController.text,
           'password': _passwordController.text,
+          'phoneNumber': _phoneController.text
         },
       );
       if (response['success'] == true) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const VerifyScreen()),
+          MaterialPageRoute(builder: (context) => VerifyScreen(email: _emailController.text)),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -116,7 +88,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             alignment: Alignment.topCenter,
             child: Container(
               width: size.width,
-              height: size.height * 0.20,
+              height: size.height * 0.15,
               decoration: const BoxDecoration(
                 color: Colors.pink,
                 borderRadius: BorderRadius.vertical(
@@ -126,7 +98,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
-          // Registration form
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
@@ -134,7 +105,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // First Name, Middle Name, Last Name in a Row
                   const Expanded(child: SizedBox()),
                   Row(
                     children: [
@@ -154,7 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8), // Space between text fields
+                      const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _middleNameController,
@@ -171,7 +141,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8), // Space between text fields
+                      const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _lastNameController,
@@ -307,7 +277,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   Center(
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center, // Center the Row
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Checkbox(
                           value: _isAgreed,
@@ -319,7 +289,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           activeColor: Colors.pink,
                         ),
                         GestureDetector(
-                          onTap: () => _showTermsModal(context), // Open the terms modal
+                          onTap: () => _showTermsModal(context), 
                           child: const Text(
                             "I agree to the Terms and Policy",
                             style: TextStyle(
@@ -417,7 +387,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     Config config = await Config.load();
 
     showDialog(
-      // ignore: use_build_context_synchronously
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(

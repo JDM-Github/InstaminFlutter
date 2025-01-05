@@ -4,7 +4,7 @@ import 'dart:convert';
 
 class RequestHandler {
   final bool development;
-  RequestHandler({this.development = true});
+  RequestHandler({this.development = false});
   String get baseUrl {
     return development ? 'http://192.168.100.151:8888' : 'https://instantmine.netlify.app';
   }
@@ -18,7 +18,6 @@ class RequestHandler {
     Map<String, dynamic>? body,
   }) async {
     if (willLoadingShow) await _showLoading(context);
-
     try {
       final url = Uri.parse('$baseUrl/.netlify/functions/api/$endpoint');
       http.Response response;

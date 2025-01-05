@@ -77,8 +77,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     double averageRating = reviews.isNotEmpty
-        ? reviews.map((review) => review['rating'] as double).reduce((a, b) => a + b) / reviews.length
-        : 0;
+        ? reviews
+                .map((review) => review['rating'] is int ? review['rating'].toDouble() : review['rating'] as double)
+                .reduce((a, b) => a + b) /
+            reviews.length
+        : 0.0;
 
     return Scaffold(
       appBar: AppBar(

@@ -4,7 +4,8 @@ import 'package:project/utils/handleRequest.dart';
 
 class HomeDashboard extends StatefulWidget {
   final dynamic user;
-  const HomeDashboard(this.user, {super.key});
+  final String search;
+  const HomeDashboard(this.user, {required this.search, super.key});
 
   @override
   State<HomeDashboard> createState() => _HomeDashboardState();
@@ -20,11 +21,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
     WidgetsBinding.instance.addPostFrameCallback((_) => init());
   }
 
+  @override
+  void didUpdateWidget(covariant HomeDashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.search != widget.search) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => init());
+    }
+  }
+
   Future<void> init() async {
     RequestHandler requestHandler = RequestHandler();
     try {
-      Map<String, dynamic> response =
-          await requestHandler.handleRequest(context, 'product/products', body: {}, type: "get");
+      Map<String, dynamic> response = await requestHandler.handleRequest(
+          context, 'product/products?search=${widget.search}',
+          body: {}, type: "get", willLoadingShow: false);
       setState(() {
         isLoading = false;
       });

@@ -30,6 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'password': password,
         },
       );
+      print(response);
       if (response['success'] == true) {
         Navigator.pushReplacement(
           context,

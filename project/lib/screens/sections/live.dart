@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:project/screens/checkout.dart';
 import 'dart:async';
 import 'package:project/utils/handleRequest.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
@@ -8,19 +9,17 @@ class LiveDashboard extends StatefulWidget {
   const LiveDashboard(this.user, {super.key});
 
   @override
-  _LiveDashboardState createState() => _LiveDashboardState();
+  State<LiveDashboard> createState() => _LiveDashboardState();
 }
 
 class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveClientMixin {
   final TextEditingController messageController = TextEditingController();
-  // late YoutubePlayerController? _youtubeController;
-  // late WebViewController _webViewController;
   Map<String, dynamic>? _livestreamMetadata;
+  dynamic products = [];
 
   late ScrollController _scrollController;
   List<Map<String, String>> _messages = [];
   late Timer _timer;
-
   String html = '';
 
   @override
@@ -28,35 +27,54 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
     super.initState();
     _scrollController = ScrollController();
     WidgetsBinding.instance.addPostFrameCallback((_) => fetchLivestreamMetadata());
-    // _startPolling();
+    _startPolling();
   }
 
-  // void _startPolling() {
-  //   _timer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-  //     await _fetchChatMessages();
-  //   });
-  // }
+  int timeToMinutes(String timeString) {
+    final parts = timeString.split(':');
+    final hours = int.parse(parts[0]);
+    final minutes = int.parse(parts[1]);
+    return hours * 60 + minutes;
+  }
+
+  bool isProductScheduled(String startTime, String endTime) {
+    final currentTime = DateTime.now();
+    final currentMinutes = currentTime.hour * 60 + currentTime.minute;
+    final startMinutes = timeToMinutes(startTime);
+    final endMinutes = timeToMinutes(endTime);
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  }
+
+  dynamic activeProducts = [];
+  void _startPolling() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      _fetchChatMessages();
+      setState(() {
+        activeProducts = products.where((product) {
+          return isProductScheduled(product['startTime'], product['endTime']);
+        }).toList();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
 
   Future<void> fetchLivestreamMetadata() async {
     RequestHandler requestHandler = RequestHandler();
     try {
       Map<String, dynamic> response =
           await requestHandler.handleRequest(context, 'youtube/get-metadata', type: "get", body: {});
+
       if (response['success'] == true) {
         if (response['metadata'] != "") {
-          // setState(() {
-          //   // html = response['url'];
-          //   html = '''
-          //     <iframe width="100%" height="100%"
-          //         src="${response['url']}?autoplay=1&mute=1"
-          //         frameborder="0"
-          //         allow="autoplay; encrypted-media"
-          //         allowfullscreen>
-          //     </iframe>
-          //   ''';
-          // });
           checkAndEmbedVideo(response['url']);
-          // checkAndEmbedVideo('https://fb.watch/w5xr3yKRfb/');
+          setState(() {
+            products = response['products'];
+          });
         }
       }
     } catch (e) {
@@ -106,14 +124,21 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
     return 'unknown';
   }
 
+  String getYouTubeVideoId(String url) {
+    final regex =
+        RegExp(r'(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|\S+\?v=|(?:v|e(?:mbed)?)\/|\S+\/[\w-]+\/))([\w-]{11})');
+    final match = regex.firstMatch(url);
+    return match != null ? match.group(1)! : "";
+  }
+
   void embedYouTubeVideo(String url) {
+    String urlId = getYouTubeVideoId(url);
     setState(() {
       html = '''
       <iframe width="100%" height="100%" 
-          src="$url?autoplay=1&mute=1" 
-          frameborder="0" 
+          src="https://www.youtube.com/embed/$urlId?autoplay=1&mute=1" 
           allow="autoplay; encrypted-media" 
-          allowfullscreen>
+          allowfullscreen
       </iframe>
     ''';
     });
@@ -156,8 +181,9 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
   @override
   Widget build(BuildContext context) {
     super.build(context);
-
     final size = MediaQuery.of(context).size;
+
+    final activeProduct = activeProducts.isNotEmpty ? activeProducts[0] : null;
     return Scaffold(
       body: Stack(
         children: [
@@ -166,10 +192,8 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
             left: 0,
             right: 0,
             child: (html.isNotEmpty)
-                ? Container(
-                    child: HtmlWidget(
-                      html,
-                    ),
+                ? HtmlWidget(
+                    html,
                   )
                 : Container(
                     width: size.width,
@@ -186,30 +210,7 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
                     ),
                   ),
           ),
-          Positioned(
-            bottom: size.height * 0.57,
-            right: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.extended(
-                  onPressed: () {
-                    // _getCurrentProduct();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('There is no scheduled items.')),
-                    );
-                  },
-                  backgroundColor: Colors.pink,
-                  icon: const Icon(Icons.monetization_on, color: Colors.white),
-                  label: const Text(
-                    'Instamine',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
+
           Positioned(
             bottom: 0,
             left: 0,
@@ -267,6 +268,76 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
               ),
             ),
           ),
+          if (activeProduct != null)
+            Positioned(
+              bottom: size.height * 0.40,
+              right: 16,
+              child: Card(
+                elevation: 5,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: GestureDetector(
+                  onTap: () {
+                    showProduct(activeProduct['id']);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Image.network(
+                          activeProduct['product_image'],
+                          width: 100,
+                          height: 100,
+                          fit: BoxFit.cover,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          activeProduct['name'],
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'LIVE ITEM',
+                          style: TextStyle(fontSize: 12, color: Colors.pink, fontWeight: FontWeight.bold),
+                        ),
+                        // const SizedBox(height: 8),
+                        // Uncomment to show price if needed
+                        // const Text(
+                        //   '₱${200}',
+                        //   style: TextStyle(fontSize: 16, color: Colors.pink, fontWeight: FontWeight.bold),
+                        // ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (activeProduct == null)
+            Positioned(
+              bottom: size.height * 0.57,
+              right: 16,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton.extended(
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('There is no scheduled items.')),
+                      );
+                    },
+                    backgroundColor: Colors.pink,
+                    icon: const Icon(Icons.monetization_on, color: Colors.white),
+                    label: const Text(
+                      'Instamine',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -302,11 +373,45 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
     );
   }
 
-  @override
-  void dispose() {
-    _timer.cancel();
-    // _youtubeController!.dispose();
-    super.dispose();
+  Future<void> showProduct(id) async {
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> response = await requestHandler.handleRequest(
+        context,
+        'product/getProduct',
+        willLoadingShow: false,
+        body: {
+          'id': id,
+        },
+      );
+      if (response['success'] == true) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (context) => CheckoutScreen(widget.user, [
+                    {
+                      'name': response['product']['name'],
+                      'price': double.parse(response['product']['price']),
+                      'numberOfProduct': 1,
+                      'productImage': response['product']['product_image'],
+                      'productId': response['product']['id'],
+                      'stock': response['product']['number_of_stock'],
+                      'isRated': false,
+                      'rating': 0,
+                      'note': ""
+                    }
+                  ])),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(response['message'] ?? 'Error getting product.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: $e')),
+      );
+    }
   }
 
   Future<void> _fetchChatMessages() async {
@@ -328,7 +433,6 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
 
         setState(() {
           _messages = [
-            ..._messages,
             ...newChats.map((chat) => {
                   'id': chat['id'],
                   'userProfile': chat['userProfile'],
@@ -337,9 +441,6 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
                   'timestamp': chat['timestamp'],
                 })
           ];
-          if (_messages.length > 30) {
-            _messages = _messages.sublist(_messages.length - 30);
-          }
         });
         _scrollToBottom();
       } else {
@@ -353,8 +454,6 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
       );
     }
   }
-
-  Future<void> _getCurrentProduct() async {}
 
   Future<void> sendSpecialMessage(String messageText) async {
     if (html.isEmpty) return;
@@ -388,15 +487,19 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
           }
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Error sending message.')),
-        );
+        // setState(() {
+        //   html = "";
+        //   _timer.cancel();
+        // });
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text(response['message'] ?? 'Error sending message.')),
+        // );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => const LiveDashboard(null)));
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('An error occurred: $e')),
       );
-      print('An error occurred: $e');
     }
   }
 
@@ -422,5 +525,5 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
   }
 
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => false;
 }

@@ -30,6 +30,7 @@ class _CartScreenState extends State<CartScreen> {
           setState(() {
             print(product);
             _cartItems.add({
+              'id': product['id'],
               'productId': product['productId'],
               'name': product['Product']['name'],
               'price': double.parse(product['Product']['price']),
@@ -67,10 +68,35 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  void _removeItem(int index) {
-    setState(() {
-      _cartItems.removeAt(index);
-    });
+  void _removeItem(int index) async {
+    List selectedItemIds = [_cartItems[index]['id']];
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> response = await requestHandler.handleRequest(
+        context,
+        'cart/updateCart',
+        body: {'cartIds': selectedItemIds},
+        willLoadingShow: false,
+      );
+
+      if (response['success'] == true) {
+        setState(() {
+          _cartItems.removeAt(index);
+        });
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response['message'] ?? 'Error deleting cart')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+    }
   }
 
   void _clearCart() {
@@ -79,10 +105,36 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  void _updateQuantity(int index, int change) {
+  void _updateQuantity(int index, int change) async {
     setState(() {
-      _cartItems[index]['quantity'] = (_cartItems[index]['quantity'] + change).clamp(1, 99);
+      _cartItems[index]['quantity'] =
+          (_cartItems[index]['quantity'] + change).clamp(1, _cartItems[index]['number_of_stock']);
     });
+
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> response = await requestHandler.handleRequest(
+        context,
+        'cart/updateCartQuantity',
+        body: {'cartId': _cartItems[index]['id'], 'quantity': _cartItems[index]['quantity']},
+        willLoadingShow: false,
+      );
+
+      if (response['success'] == true) {
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(response['message'] ?? 'Error updating cart')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+    }
   }
 
   void _toggleSelection(int index) {
@@ -99,10 +151,37 @@ class _CartScreenState extends State<CartScreen> {
     });
   }
 
-  void _removeSelectedItems() {
+  void _removeSelectedItems() async {
+    List selectedItemIds = _cartItems.where((item) => item['isSelected'] == true).map((item) => item['id']).toList();
     setState(() {
       _cartItems.removeWhere((item) => item['isSelected']);
     });
+
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> response = await requestHandler.handleRequest(
+        context,
+        'cart/updateCart',
+        body: {'cartIds': selectedItemIds},
+        willLoadingShow: false,
+      );
+      if (response['success'] == true) {
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Error deleting cart'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+    }
   }
 
   @override
