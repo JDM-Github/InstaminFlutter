@@ -4,7 +4,7 @@ import 'dart:convert';
 
 class RequestHandler {
   final bool development;
-  RequestHandler({this.development = false});
+  RequestHandler({this.development = true});
   String get baseUrl {
     return development ? 'http://192.168.100.151:8888' : 'https://instantmine.netlify.app';
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:project/screens/dashboard.dart';
-import 'package:project/screens/ewallet.dart';
 import 'package:project/screens/payment.dart';
 import 'package:project/screens/toShip.dart';
 import 'dart:async';

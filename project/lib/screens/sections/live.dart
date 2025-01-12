@@ -14,7 +14,7 @@ class LiveDashboard extends StatefulWidget {
 
 class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveClientMixin {
   final TextEditingController messageController = TextEditingController();
-  Map<String, dynamic>? _livestreamMetadata;
+  // Map<String, dynamic>? _livestreamMetadata;
   dynamic products = [];
 
   late ScrollController _scrollController;
@@ -343,35 +343,35 @@ class _LiveDashboardState extends State<LiveDashboard> with AutomaticKeepAliveCl
     );
   }
 
-  void _showDescriptionModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Live Stream Description',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _livestreamMetadata!['snippet']['description'] ?? 'No description available.',
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // void _showDescriptionModal(BuildContext context) {
+  //   showModalBottomSheet(
+  //     context: context,
+  //     builder: (BuildContext context) {
+  //       return Padding(
+  //         padding: const EdgeInsets.all(16.0),
+  //         child: SingleChildScrollView(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               const Text(
+  //                 'Live Stream Description',
+  //                 style: TextStyle(
+  //                   fontSize: 18,
+  //                   fontWeight: FontWeight.bold,
+  //                 ),
+  //               ),
+  //               const SizedBox(height: 16),
+  //               Text(
+  //                 _livestreamMetadata!['snippet']['description'] ?? 'No description available.',
+  //                 style: const TextStyle(fontSize: 16),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
 
   Future<void> showProduct(id) async {
     RequestHandler requestHandler = RequestHandler();

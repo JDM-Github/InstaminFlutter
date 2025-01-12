@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
 import 'package:flutter/material.dart';
 import 'package:project/screens/login.dart';
 import 'package:project/screens/modals/profile_edit.dart';
@@ -26,7 +29,121 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
     _email = widget.user['email'];
     _phone = widget.user['phoneNumber'];
     _location = widget.user['location'];
-    _profileImageUrl = "";
+    _profileImageUrl = widget.user['profileImage'];
+  }
+
+   Future<void> _showLoading(BuildContext context) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const PopScope(
+          canPop: true,
+          child: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<String> uploadFile(selectedFile) async {
+    if (selectedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a file to upload.')),
+      );
+      return "";
+    }
+  await _showLoading(context);
+    try {
+      var request = http.MultipartRequest(
+          'POST', Uri.parse('https://instantmine.netlify.app/.netlify/functions/api/file/upload-image'));
+      request.files.add(await http.MultipartFile.fromPath('file', selectedFile));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        var responseData = jsonDecode(response.body);
+        if (responseData['success']) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('File uploaded: ${responseData['uploadedDocument']}')),
+          );
+          return responseData['uploadedDocument'];
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Upload failed: ${responseData['message']}')),
+          );
+        }
+      } else {
+        throw Exception('Failed to upload file. Status code: ${response.statusCode}');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: $e')),
+      );
+    }
+    Navigator.pop(context);
+    return "";
+  }
+
+  Future<void> updateProfile(selectedImage, updatedUser) async {
+    String imageUrl = "";
+    if (selectedImage != null) {
+      imageUrl = await uploadFile(selectedImage.path);
+    }
+    RequestHandler requestHandler = RequestHandler();
+    try {
+      Map<String, dynamic> response = await requestHandler.handleRequest(context, 'user/updateUser',
+          body: {
+            'profileImage': imageUrl,
+            'firstName': updatedUser['firstName'],
+            'lastName': updatedUser['lastName'],
+            'email': updatedUser['email'],
+            'phoneNumber': updatedUser['phone'],
+            'location': updatedUser['location'],
+          },
+          willLoadingShow: true);
+
+      if (response['success'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Successfully updated user'),
+            ),
+          );
+        }
+        setState(() {
+          widget.user['profileImage'] = imageUrl;
+          widget.user['firstName'] = updatedUser['firstName'];
+          widget.user['lastName'] = updatedUser['lastName'];
+          widget.user['email'] = updatedUser['email'];
+          widget.user['phoneNumber'] = updatedUser['phone'];
+          widget.user['location'] = updatedUser['location'];
+
+          _name = widget.user['firstName'] + " " + widget.user['lastName'];
+          _email = widget.user['email'];
+          _phone = widget.user['phoneNumber'];
+          _location = widget.user['location'];
+          _profileImageUrl = imageUrl;
+        });
+        Navigator.pop(context);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(response['message'] ?? 'Updating user error'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('An error occurred: $e')),
+        );
+      }
+    }
   }
 
   void _showEditModal(BuildContext context) {
@@ -35,57 +152,7 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
       builder: (context) => EditProfileModal(
         user: widget.user,
         onSave: (selectedImage, updatedUser) async {
-          setState(() {
-            widget.user['profileImage'] = selectedImage?.path;
-            widget.user['firstName'] = updatedUser['firstName'];
-            widget.user['lastName'] = updatedUser['lastName'];
-            widget.user['email'] = updatedUser['email'];
-            widget.user['phoneNumber'] = updatedUser['phone'];
-            widget.user['location'] = updatedUser['location'];
-
-            _name = widget.user['firstName'] + " " + widget.user['lastName'];
-            _email = widget.user['email'];
-            _phone = widget.user['phoneNumber'];
-            _location = widget.user['location'];
-          });
-
-          RequestHandler requestHandler = RequestHandler();
-          try {
-            Map<String, dynamic> response = await requestHandler.handleRequest(context, 'user/updateUser',
-                body: {
-                  'profileImage': selectedImage?.path,
-                  'firstName': updatedUser['firstName'],
-                  'lastName': updatedUser['lastName'],
-                  'email': updatedUser['email'],
-                  'phoneNumber': updatedUser['phone'],
-                  'location': updatedUser['location'],
-                },
-                willLoadingShow: false);
-
-            if (response['success'] == true) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(response['message'] ?? 'Successfully updated user'),
-                  ),
-                );
-              }
-            } else {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(response['message'] ?? 'Updating user error'),
-                  ),
-                );
-              }
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('An error occurred: $e')),
-              );
-            }
-          }
+          updateProfile(selectedImage, updatedUser);
         },
       ),
     );
@@ -196,7 +263,8 @@ class _ProfileDashboardState extends State<ProfileDashboard> {
                   Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => ToShipScreen(widget.user, toProcess: true, textAbove: "Process Order")));
+                          builder: (context) =>
+                              ToShipScreen(widget.user, toProcess: true, textAbove: "Process Order")));
                 }),
                 _buildOrderStatusButton(Icons.local_shipping, 'To Ship', () {
                   Navigator.push(

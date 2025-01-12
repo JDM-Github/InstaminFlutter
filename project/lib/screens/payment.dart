@@ -49,15 +49,16 @@ class _PaymentScreenState extends State<PaymentScreen> {
         return;
       }
       final response = await http.post(
-        Uri.parse('https://instantmine.netlify.app/.netlify/functions/api/create-payment'),
+        Uri.parse('http://192.168.100.151:8888/.netlify/functions/api/create-payment'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'amount': widget.amount, 'description': 'Order Payment', 'walletType': widget.walletType,
           'products': widget.products, 'users': widget.user, 'order': order['orderBatch']
         }),
       );
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+      print(data);
+
         final String redirectUrl = data['redirectUrl'];
 
         _webViewController = WebViewController()

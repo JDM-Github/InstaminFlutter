@@ -2,44 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
-
-Future<String> _getUserLocation() async {
-  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-  if (!serviceEnabled) {
-    return 'Location services are disabled.';
-  }
-
-  LocationPermission permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied) {
-      return 'Location permission denied.';
-    }
-  }
-
-  if (permission == LocationPermission.deniedForever) {
-    return 'Location permissions are permanently denied.';
-  }
-
-  Position position = await Geolocator.getCurrentPosition();
-
-  try {
-    List<Placemark> placemarks = await placemarkFromCoordinates(
-      position.latitude,
-      position.longitude,
-    );
-    if (placemarks.isNotEmpty) {
-      Placemark place = placemarks.first;
-      return "${place.street}, ${place.locality}, ${place.administrativeArea}, ${place.country}";
-    } else {
-      return 'Address not found.';
-    }
-  } catch (e) {
-    return 'Failed to get address: $e';
-  }
-}
 
 class EditProfileModal extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -142,19 +104,6 @@ class _EditProfileModalState extends State<EditProfileModal> {
                 controller: locationController,
                 decoration: const InputDecoration(labelText: 'Location'),
               ),
-              // TextField(
-              //   controller: locationController,
-              //   decoration: InputDecoration(
-              //     labelText: 'Location',
-              //     suffixIcon: IconButton(
-              //       icon: const Icon(Icons.my_location),
-              //       onPressed: () async {
-              //         String currentLocation = await _getUserLocation();
-              //         locationController.text = currentLocation;
-              //       },
-              //     ),
-              //   ),
-              // ),
             ],
           ),
         ),

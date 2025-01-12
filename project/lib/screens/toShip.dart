@@ -1,11 +1,9 @@
-// ignore: file_names
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:project/screens/pay.dart';
 import 'package:project/utils/handleRequest.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 String generatePin() {
   final random = Random();
